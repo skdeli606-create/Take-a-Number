@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Take a Number – Queue Simulator</title>
+<style>
+:root{--bg:#0e3b43;--panel:#134b54;--ink:#f3efe0;--mute:#9fc2c4;--ticket:#ffd23f;--tink:#2b2100;--hot:#ee6352;--ok:#7bd389;--line:#2a6670;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark}}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+h1{font:800 clamp(28px,6vw,44px)/1.05 "Arial Narrow","Franklin Gothic Medium",Impact,sans-serif;margin:0 0 4px;letter-spacing:.5px}
+.sub{color:var(--mute);margin:0 0 20px;max-width:60ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+h2{font-size:17px;margin:0 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,button{font:inherit;border-radius:8px;border:1px solid var(--line);padding:9px 12px;background:#0b2f35;color:var(--ink)}
+input{flex:1 1 140px;min-width:0}
+button{cursor:pointer;background:var(--ticket);color:var(--tink);font-weight:700;border:0}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:500}
+button:hover{filter:brightness(1.08)}
+:focus-visible{outline:3px solid var(--ticket);outline-offset:2px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:26px;line-height:1.1}
+.stat span{color:var(--mute);font-size:13px}
+.lane{display:flex;gap:10px;overflow-x:auto;padding:22px 4px 8px;min-height:120px;align-items:stretch}
+.tag{position:relative}
+.ticket{flex:0 0 auto;width:104px;background:var(--ticket);color:var(--tink);border-radius:6px;padding:8px 10px;position:relative;
+-webkit-mask:radial-gradient(circle 6px at 0 50%,#0000 98%,#000) left/51% 100% no-repeat,radial-gradient(circle 6px at 100% 50%,#0000 98%,#000) right/51% 100% no-repeat;
+mask:radial-gradient(circle 6px at 0 50%,#0000 98%,#000) left/51% 100% no-repeat,radial-gradient(circle 6px at 100% 50%,#0000 98%,#000) right/51% 100% no-repeat}
+.ticket .n{font:800 26px/1 "Arial Narrow",Impact,sans-serif}
+.ticket .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ticket .sv{font-size:11px;opacity:.75}
+.ticket.enter{animation:pop .3s ease-out}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+@media (prefers-reduced-motion:reduce){.ticket.enter{animation:none}}
+.mark{position:absolute;top:-20px;font-size:12px;color:var(--ticket);font-weight:700}
+.mark.f{left:2px}.mark.r{right:2px}
+.empty{color:var(--mute);align-self:center}
+.counters{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.counter{background:#0b2f35;border:1px solid var(--line);border-radius:10px;padding:12px}
+.counter h3{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between}
+.state{font-size:12px;color:var(--mute)}
+.busy .state{color:var(--ok)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;width:0;background:var(--ok)}
+.cur{min-height:40px}
+#log{max-height:170px;overflow:auto;font:13px/1.6 ui-monospace,Menlo,Consolas,monospace;color:var(--mute);margin:0;padding:0;list-style:none}
+#log b{color:var(--ticket)}#log .d{color:var(--ok)}
+label.sw{display:flex;gap:6px;align-items:center;color:var(--mute);font-size:14px}
+label.sw input{flex:none;accent-color:var(--ticket)}
+@media(max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<main>
+<h1>Take a Number</h1>
+<p class="sub">A service desk run on a FIFO queue. Customers join at the rear, counters serve from the front – first in, first out.</p>
+
+<section class="panel" aria-label="Join the queue">
+  <h2>Join the queue <small style="color:var(--mute);font-weight:400">(enqueue)</small></h2>
+  <div class="row">
+    <input id="name" placeholder="Customer name" maxlength="16" aria-label="Customer name">
+    <select id="svc" aria-label="Service">
+      <option value="2">Quick question (2s)</option>
+      <option value="5" selected>Account update (5s)</option>
+      <option value="9">Complex case (9s)</option>
+    </select>
+    <button id="add">Take a ticket</button>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <label class="sw"><input type="checkbox" id="auto"> Auto-arrivals</label>
+    <label class="sw"><input type="checkbox" id="autoserve" checked> Counters call next automatically</label>
+    <button class="ghost" id="peek">Peek front</button>
+    <button class="ghost" id="clear">Reset</button>
+  </div>
+</section>
+
+<div class="stats">
+  <div class="stat"><b id="sWait">0</b><span>Waiting (size)</span></div>
+  <div class="stat"><b id="sDone">0</b><span>Served</span></div>
+  <div class="stat"><b id="sAvg">0.0s</b><span>Average wait</span></div>
+  <div class="stat"><b id="sMax">0</b><span>Longest line</span></div>
+</div>
+
+<section class="panel" aria-label="Waiting line">
+  <h2>Waiting line</h2>
+  <div class="lane" id="lane" aria-live="polite"></div>
+</section>
+
+<section class="panel" aria-label="Counters">
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <h2 style="margin:0">Counters <small style="color:var(--mute);font-weight:400">(dequeue)</small></h2>
+    <div class="row">
+      <button class="ghost" id="addC">+ Counter</button>
+      <button class="ghost" id="remC">− Counter</button>
+    </div>
+  </div>
+  <div class="counters" id="counters"></div>
+</section>
+
+<section class="panel" aria-label="Operation log">
+  <h2>Operation log</h2>
+  <ul id="log"></ul>
+</section>
+</main>
+
+<script>
+// ---------- Queue: singly linked list with O(1) enqueue/dequeue ----------
+class Queue {
+  constructor(){ this.head=null; this.tail=null; this.size=0; }
+  enqueue(v){ const n={v,next:null}; if(this.tail) this.tail.next=n; else this.head=n; this.tail=n; this.size++; }
+  dequeue(){ if(!this.head) return null; const n=this.head; this.head=n.next; if(!this.head) this.tail=null; this.size--; return n.v; }
+  peek(){ return this.head ? this.head.v : null; }
+  isEmpty(){ return this.size===0; }
+  toArray(){ const a=[]; for(let n=this.head;n;n=n.next) a.push(n.v); return a; }
+  clear(){ this.head=this.tail=null; this.size=0; }
+}
+
+// ---------- State ----------
+const $ = id => document.getElementById(id);
+const q = new Queue();
+let counters=[], nextTicket=1, served=0, totalWait=0, maxLen=0, autoTimer=null, lastAdded=null;
+const names=["Ava","Ben","Chloe","Dev","Elif","Femi","Gus","Hana","Ivo","Jun","Kai","Lena","Mo","Nia","Omar","Pia"];
+const svcLabel={2:"Quick",5:"Update",9:"Complex"};
+
+function log(html,cls){ const li=document.createElement("li"); li.innerHTML=html; if(cls) li.className=cls;
+  const L=$("log"); L.prepend(li); while(L.children.length>60) L.lastChild.remove(); }
+const esc = s => s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pad = n => String(n).padStart(3,"0");
+
+// ---------- Actions ----------
+function enqueue(name,dur){
+  const t={id:nextTicket++, name:name||"Guest "+nextTicket, dur:+dur, at:Date.now()};
+  q.enqueue(t); lastAdded=t.id; maxLen=Math.max(maxLen,q.size);
+  log(`<b>enqueue</b> #${pad(t.id)} ${esc(t.name)} → rear (size ${q.size})`);
+  render();
+  if($("autoserve").checked) dispatch();
+}
+function callNext(c){
+  if(c.busy) return;
+  const t=q.dequeue();
+  if(!t){ return; }
+  c.busy=t; c.left=t.dur; const w=(Date.now()-t.at)/1000; totalWait+=w;
+  log(`<span class="d">dequeue</span> #${pad(t.id)} ${esc(t.name)} → counter ${c.id} (waited ${w.toFixed(1)}s)`);
+  render();
+}
+function dispatch(){ counters.forEach(c=>{ if(!c.busy) callNext(c); }); }
+
+function tick(){
+  let changed=false;
+  counters.forEach(c=>{
+    if(!c.busy) return;
+    c.left-=0.25; changed=true;
+    if(c.left<=0){ log(`counter ${c.id} finished #${pad(c.busy.id)}`); c.busy=null; served++; if($("autoserve").checked) callNext(c); }
+  });
+  if(changed) render();
+}
+setInterval(tick,250);
+
+// ---------- Rendering ----------
+function render(){
+  const arr=q.toArray(), lane=$("lane");
+  lane.innerHTML = arr.length ? "" : '<span class="empty">Nobody is waiting. Take a ticket to join.</span>';
+  arr.forEach((t,i)=>{
+    const w=document.createElement("div"); w.className="tag";
+    const m = (i===0?'<span class="mark f">FRONT</span>':'') + (i===arr.length-1?'<span class="mark r">REAR</span>':'');
+    w.innerHTML=`${m}<div class="ticket ${t.id===lastAdded?'enter':''}"><div class="n">${pad(t.id)}</div><div class="nm">${esc(t.name)}</div><div class="sv">${svcLabel[t.dur]}</div></div>`;
+    lane.appendChild(w);
+  });
+  lastAdded=null;
+  const box=$("counters");
+  if(box.children.length!==counters.length){
+    box.innerHTML=""; counters.forEach(c=>{ const d=document.createElement("div"); d.className="counter"; d.id="c"+c.id;
+      d.innerHTML=`<h3>Counter ${c.id}<span class="state"></span></h3><div class="cur"></div><div class="bar"><i></i></div><button class="call">Call next</button>`;
+      d.querySelector(".call").onclick=()=>{ if(q.isEmpty()) log("queue is empty – nothing to dequeue"); else callNext(c); };
+      box.appendChild(d); });
+  }
+  counters.forEach(c=>{
+    const d=$("c"+c.id); d.classList.toggle("busy",!!c.busy);
+    d.querySelector(".state").textContent=c.busy?"serving":"free";
+    d.querySelector(".cur").innerHTML=c.busy?`<b>#${pad(c.busy.id)}</b> ${esc(c.busy.name)}<br><small>${svcLabel[c.busy.dur]} service</small>`:'<small>Waiting for the next customer</small>';
+    d.querySelector(".bar i").style.width=c.busy?((1-c.left/c.busy.dur)*100)+"%":"0";
+    d.querySelector(".call").disabled=!!c.busy;
+  });
+  $("sWait").textContent=q.size; $("sDone").textContent=served; $("sMax").textContent=maxLen;
+  $("sAvg").textContent=((served+counters.filter(c=>c.busy).length)?(totalWait/(served+counters.filter(c=>c.busy).length)):0).toFixed(1)+"s";
+}
+
+// ---------- Controls ----------
+$("add").onclick=()=>{ enqueue($("name").value.trim(),$("svc").value); $("name").value=""; $("name").focus(); };
+$("name").addEventListener("keydown",e=>{ if(e.key==="Enter") $("add").click(); });
+$("peek").onclick=()=>{ const t=q.peek(); log(t?`<b>peek</b> front is #${pad(t.id)} ${esc(t.name)} (not removed)`:"<b>peek</b> queue is empty"); };
+$("clear").onclick=()=>{ q.clear(); counters.forEach(c=>c.busy=null); nextTicket=1; served=0; totalWait=0; maxLen=0; $("log").innerHTML=""; log("queue reset"); render(); };
+$("addC").onclick=()=>{ if(counters.length<5){ counters.push({id:counters.length+1,busy:null,left:0}); log(`counter ${counters.length} opened`); render(); if($("autoserve").checked) dispatch(); } };
+$("remC").onclick=()=>{ if(counters.length>1 && !counters[counters.length-1].busy){ log(`counter ${counters.length} closed`); counters.pop(); $("counters").innerHTML=""; render(); } else log("a counter can close only when it is free, and one must stay open"); };
+$("auto").onchange=e=>{
+  clearInterval(autoTimer);
+  if(e.target.checked) autoTimer=setInterval(()=>enqueue(names[Math.random()*names.length|0],[2,5,9][Math.random()*3|0]),1800);
+};
+
+counters=[{id:1,busy:null,left:0},{id:2,busy:null,left:0}];
+log("desk open with 2 counters");
+render();
+</script>
+</body>
+</html>
